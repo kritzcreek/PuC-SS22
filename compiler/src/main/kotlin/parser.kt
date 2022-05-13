@@ -11,12 +11,15 @@ sealed class Token {
   object IF : Token()
   object THEN : Token()
   object ELSE : Token()
+  object LET : Token()
+  object IN : Token()
 
   // Symbols
   object LPAREN : Token()
   object RPAREN : Token()
   object ARROW : Token()
   object BACKSLASH : Token()
+  object EQUALS : Token()
 
   // Literal
   data class BOOL_LIT(val bool: Boolean) : Token()
@@ -26,6 +29,10 @@ sealed class Token {
 
   // Operator
   object PLUS : Token()
+  object MINUS : Token()
+  object MULTIPLY : Token()
+  object DIVIDES : Token()
+  object DOUBLE_EQUALS : Token()
 
   // Control
   object EOF : Token()
@@ -62,10 +69,22 @@ class Lexer(input: String) {
       ')' -> Token.RPAREN
       '\\' -> Token.BACKSLASH
       '+' -> Token.PLUS
-      '-', '=' -> if (iter.next() == '>') {
+      '/' -> Token.DIVIDES
+      '*' -> Token.MULTIPLY
+      '-' -> if (iter.peek() == '>') {
+        iter.next()
         Token.ARROW
       } else {
-        throw Exception("Tried to parse an Arrow but failed")
+        Token.MINUS
+      }
+      '=' -> if (iter.peek() == '>') {
+        iter.next()
+        Token.ARROW
+      } else if (iter.peek() == '=') {
+        iter.next()
+        Token.DOUBLE_EQUALS
+      } else {
+        Token.EQUALS
       }
       else -> when {
         c.isJavaIdentifierStart() -> lexIdentifier(c)
@@ -92,6 +111,8 @@ class Lexer(input: String) {
       "if" -> Token.IF
       "then" -> Token.THEN
       "else" -> Token.ELSE
+      "let" -> Token.LET
+      "in" -> Token.IN
       "true" -> Token.BOOL_LIT(true)
       "false" -> Token.BOOL_LIT(false)
       else -> Token.IDENT(res)
@@ -111,7 +132,44 @@ class Lexer(input: String) {
 }
 
 class Parser(val lexer: Lexer) {
+
   fun parseExpression(): Expr {
+    return parseBinary(0)
+  }
+
+  fun parseBinary(minBindingPower: Int): Expr {
+    var lhs = parseApplication()
+    while (true) {
+      val op = peekOperator() ?: break
+      val (leftBp, rightBp) = bindingPowerForOp(op)
+      if (minBindingPower > leftBp) break;
+      lexer.next()
+      val rhs = parseBinary(rightBp)
+      lhs = Expr.Binary(lhs, op, rhs)
+    }
+    return lhs
+  }
+
+  private fun peekOperator(): Operator? {
+    return when (lexer.lookahead()) {
+      Token.DIVIDES -> Operator.Divide
+      Token.DOUBLE_EQUALS -> Operator.Equality
+      Token.MINUS -> Operator.Subtract
+      Token.MULTIPLY -> Operator.Multiply
+      Token.PLUS -> Operator.Add
+      else -> null
+    }
+  }
+
+  private fun bindingPowerForOp(op: Operator): Pair<Int, Int> {
+    return when (op) {
+      Operator.Equality -> 2 to 1
+      Operator.Add, Operator.Subtract -> 3 to 4
+      Operator.Multiply, Operator.Divide -> 5 to 6
+    }
+  }
+
+  fun parseApplication(): Expr {
     var expr = parseAtom() ?: throw Exception("Expected an expression")
     while (true) {
       val arg = parseAtom() ?: break
@@ -125,6 +183,7 @@ class Parser(val lexer: Lexer) {
       is Token.INT_LIT -> parseInt()
       is Token.BOOL_LIT -> parseBool()
       is Token.BACKSLASH -> parseLambda()
+      is Token.LET -> parseLet()
       is Token.IF -> parseIf()
       is Token.IDENT -> parseVar()
       is Token.LPAREN -> {
@@ -135,6 +194,16 @@ class Parser(val lexer: Lexer) {
       }
       else -> null
     }
+  }
+
+  private fun parseLet(): Expr {
+    expect<Token.LET>("let")
+    val binder = expect<Token.IDENT>("binder").ident
+    expect<Token.EQUALS>("equals")
+    val expr = parseExpression()
+    expect<Token.IN>("in")
+    val body = parseExpression()
+    return Expr.Let(binder, expr, body)
   }
 
   private fun parseVar(): Expr.Var {
@@ -183,43 +252,37 @@ fun testLex(input: String) {
   } while (lexer.lookahead() != Token.EOF)
 }
 
-val add = Value.Closure(persistentHashMapOf(), "x", Expr.Lambda("y", Expr.Addition(x, y)))
-val minusOne = Value.Int(-1)
-val minusTwo = Value.Int(-2)
-val equals = Value.Closure(persistentHashMapOf(), "x", Expr.Lambda("y", Expr.Equality(x, y)))
+fun testParse(input: String) {
+  val parser = Parser(Lexer(input))
+  val expr = parser.parseExpression()
+  print(expr)
+}
 
 fun test(input: String) {
   val parser = Parser(Lexer(input))
   val expr = parser.parseExpression()
   print(
     eval(
-      persistentHashMapOf(
-        "add" to add,
-        "equals" to equals,
-        "z" to eval(emptyEnv, z),
-        "minusOne" to minusOne,
-        "minusTwo" to minusTwo,
-      ), expr
+      persistentHashMapOf(), expr
     )
   )
 }
 
-// Hausaufgabe (normal): Zeilenkommentare // asd
-// Hausaufgabe (hard): Blockkommentare /* asd */
-// Hausaufgabe (hard++): Nested Blockkommentare /* asd /* ok */ */
+// Hausaufgabe: Definiere Binaere Operatoren fuer
+// - && Boolsches Und  x && y || z == (x && y) || z
+// - || Boolsches Oder
+// - ^ Exponent
 
 fun main() {
-  // testLex("""if 3 then 4 else 5""")
+//  testLex("""-> => == / * + -""")
   test(
     """
-    z (\self => \x ->
-    if equals x 0 then
-      0
-    else if equals x 1 then
-      1
-    else
-      add (self (add x minusOne)) (self (add x minusTwo))
-    ) 10
+      let z = \f => (\x => f \v => x x v) (\x => f \v => x x v) in
+      let fib = \self => \x ->
+        if x == 0 then 0
+        else if x == 1 then 1
+        else self (x - 1) + self (x - 2) in
+      z fib 10
    """.trimMargin()
   )
 }

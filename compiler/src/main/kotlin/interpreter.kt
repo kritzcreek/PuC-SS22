@@ -6,11 +6,19 @@ sealed class Expr {
   data class Lambda(val binder: String, val body: Expr) : Expr()
   data class App(val func: Expr, val arg: Expr) : Expr()
   data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr) : Expr()
+  data class Binary(val left: Expr, val op: Operator, val right: Expr) : Expr()
+  data class Let(val binder: String, val expr: Expr, val body: Expr) : Expr()
 
   data class IntLiteral(val num: Int) : Expr()
   data class BoolLiteral(val bool: Boolean) : Expr()
-  data class Addition(val left: Expr, val right: Expr) : Expr()
-  data class Equality(val left: Expr, val right: Expr) : Expr()
+}
+
+enum class Operator {
+  Add,
+  Subtract,
+  Multiply,
+  Divide,
+  Equality
 }
 
 typealias Env = PersistentMap<String, Value>
@@ -25,15 +33,10 @@ fun eval(env: Env, expr: Expr): Value {
   return when (expr) {
     is Expr.IntLiteral -> Value.Int(expr.num)
     is Expr.BoolLiteral -> Value.Bool(expr.bool)
-    is Expr.Addition -> {
+    is Expr.Binary -> {
       val left = eval(env, expr.left)
       val right = eval(env, expr.right)
-      numericBinary(left, right, "add") { x, y -> Value.Int(x + y) }
-    }
-    is Expr.Equality -> {
-      val left = eval(env, expr.left)
-      val right = eval(env, expr.right)
-      numericBinary(left, right, "compare") { x, y -> Value.Bool(x == y) }
+      numericBinary(left, right, nameForOp(expr.op)) { x, y -> applyOp(expr.op, x, y) }
     }
     is Expr.If -> {
       val condition = eval(env, expr.condition)
@@ -45,6 +48,10 @@ fun eval(env: Env, expr: Expr): Value {
       } else {
         eval(env, expr.elseBranch)
       }
+    }
+    is Expr.Let -> {
+      val extendedEnv = env.put(expr.binder, eval(env, expr.expr))
+      eval(extendedEnv, expr.body)
     }
     is Expr.Lambda -> Value.Closure(env, expr.binder, expr.body)
     is Expr.Var -> env.get(expr.name) ?: throw Exception("Unbound variable ${expr.name}")
@@ -58,6 +65,26 @@ fun eval(env: Env, expr: Expr): Value {
         eval(newEnv, func.body)
       }
     }
+  }
+}
+
+fun applyOp(op: Operator, x: Int, y: Int): Value {
+  return when (op) {
+    Operator.Add -> Value.Int(x + y)
+    Operator.Subtract -> Value.Int(x - y)
+    Operator.Multiply -> Value.Int(x * y)
+    Operator.Divide -> Value.Int(x / y)
+    Operator.Equality -> Value.Bool(x == y)
+  }
+}
+
+fun nameForOp(op: Operator): String {
+  return when (op) {
+    Operator.Add -> "add"
+    Operator.Subtract -> "subtract"
+    Operator.Multiply -> "multiply"
+    Operator.Divide -> "divide"
+    Operator.Equality -> "compare"
   }
 }
 
@@ -88,18 +115,25 @@ val z = Expr.Lambda("f", Expr.App(innerZ1, innerZ1))
 fun main() {
   // sumAll(0) = 0
   // sumAll(x) = x + sumAll(x-1)
-  val sumAll = Expr.Lambda("self", Expr.Lambda("x",
-    Expr.If(
-      Expr.Equality(x, Expr.IntLiteral(0)),
-      Expr.IntLiteral(0),
-      Expr.Addition(
-        x,
-        Expr.App(Expr.Var("self"), Expr.Addition(x, Expr.IntLiteral(-1))))
-    )))
+  val sumAll = Expr.Lambda(
+    "self", Expr.Lambda(
+      "x",
+      Expr.If(
+        Expr.Binary(x, Operator.Equality, Expr.IntLiteral(0)),
+        Expr.IntLiteral(0),
+        Expr.Binary(
+          x,
+          Operator.Add,
+          Expr.App(Expr.Var("self"), Expr.Binary(x, Operator.Add, Expr.IntLiteral(-1)))
+        )
+      )
+    )
+  )
 
-  val add = Expr.Lambda("x", Expr.Lambda("y", Expr.Addition(x, y)))
+  val add = Expr.Lambda("x", Expr.Lambda("y", Expr.Binary(x, Operator.Add, y)))
 
-  val result = eval(emptyEnv,
+  val result = eval(
+    emptyEnv,
     Expr.App(Expr.App(z, sumAll), Expr.IntLiteral(500))
   )
   println("$result")
