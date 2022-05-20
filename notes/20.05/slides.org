@@ -1,0 +1,105 @@
+#+TITLE: Sechste Vorlesung
+#+DATE: 20.05.2022 PuC
+* Herzlich Willkommen
+
+Bitte an die Kameras denken
+
+Aufnahme starten
+
+* Wiederholung
+
+** Pratt-Parsing
+
+Wir verwenden Pratt Parsing um Ausdruecke mit binaeren Operatoren zu parsen.
+
+Pratt parsing kombiniert Rekursion mit imperativen Konstrukten um Operatoren
+anhand einer _binding power_ Tabelle zu assoziieren.
+
+#+begin_src
+1 * 2 + 3 ⇒ (1 * 2) + 3
+1 + 2 == 3 ⇒ (1 + 2) == 3
+1 * 2 + 3 == 4 ⇒ ((1 * 2) + 3) == 4
+#+end_src
+
+
+** Uebung: Boolsche Operatoren und Exponent
+** Let Bindings
+
+Ein Let-binding weist einer Variable einen Wert zu, und macht die Variable in
+einem bestimmtem Bereich unseres Programs verfuegbar.
+
+Syntax:
+
+let x = e1 in e2
+
+Die operationale Semantik (Laufzeitverhalten) laesst sich durch eine Uebersetzung
+in Lambda beschreiben:
+
+let x = e1 in e2 == (\x => e2) e1
+
+Beispiel:
+
+let x = 10 in let y = 20 in x + y
+
+* Typen
+
+** Was sind Typen?
+
+- Typen beschreiben Werte/Ausdruecke
+- Typen bilden Kategorien/Mengen
+- Es gibt _primitive_ Typen: Int, Boolean
+- Einziger nicht primitiver Typ: Funktionstyp
+
+(Nochmal auf Literal vs Primitiv eingehen)
+
+Notation:
+Wir schreiben "Ausdruck e hat den Typ t" als:
+
+ e : t
+
+** Praeservation
+
+Ein Ausdruck veraendert seinen Typ nicht wenn wir ihn evaluieren.
+
+3 + 4 = 7
+
+7 hat den Typ Number, sodass auch 3 + 4 den Typ Number hat.
+
+e : t => eval(e) : t
+
+(\x => if x then 1 else true) ist in unserer Sprache kein typbarer Wert.
+
+** Progress
+
+Ein wohlgetypter Ausdruck (expr) kann in einen Wert (value) evaluiert werden.
+
+"Ausdruecke die sich nicht evaluieren lassen (crashen), sollen in
+unserem Typsystem keinen Typ haben."
+
+(Einzige Ausnahme ist unbegrenzte Rekursion)
+
+** Typ Quiz
+
+** Praezedenz des Funktionspfeils
+
+Number
+Boolean
+
+Number -> Number
+
+x : Number -> (Number -> Number)
+x = \a -> (\b -> a + b)
+
+y : (Number -> Number) -> Number
+y = \a -> a 10
+
+* Typinferenz
+
+"Typinferenz beschreibt die automatische Detektion des Typen eines
+Ausdrucks in einer Programmiersprache"
+
+- Programmiersprache
+- Ausdruck
+- Typ
+
+- _Detektion_
