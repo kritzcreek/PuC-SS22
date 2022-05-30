@@ -14,12 +14,17 @@ sealed class Token {
   object LET : Token()
   object IN : Token()
 
+  object INT : Token()
+  object BOOL : Token()
+
   // Symbols
   object LPAREN : Token()
   object RPAREN : Token()
   object ARROW : Token()
+  object EQ_ARROW : Token()
   object BACKSLASH : Token()
   object EQUALS : Token()
+  object COLON : Token()
 
   // Literal
   data class BOOL_LIT(val bool: Boolean) : Token()
@@ -68,6 +73,7 @@ class Lexer(input: String) {
       '(' -> Token.LPAREN
       ')' -> Token.RPAREN
       '\\' -> Token.BACKSLASH
+      ':' -> Token.COLON
       '+' -> Token.PLUS
       '/' -> Token.DIVIDES
       '*' -> Token.MULTIPLY
@@ -79,7 +85,7 @@ class Lexer(input: String) {
       }
       '=' -> if (iter.peek() == '>') {
         iter.next()
-        Token.ARROW
+        Token.EQ_ARROW
       } else if (iter.peek() == '=') {
         iter.next()
         Token.DOUBLE_EQUALS
@@ -115,6 +121,8 @@ class Lexer(input: String) {
       "in" -> Token.IN
       "true" -> Token.BOOL_LIT(true)
       "false" -> Token.BOOL_LIT(false)
+      "Int" -> Token.INT
+      "Bool" -> Token.BOOL
       else -> Token.IDENT(res)
     }
   }
@@ -132,6 +140,32 @@ class Lexer(input: String) {
 }
 
 class Parser(val lexer: Lexer) {
+
+  fun parseType(): Type {
+    var ty = parseTypeAtom()
+    while(lexer.lookahead() == Token.ARROW) {
+      expect<Token.ARROW>("an arrow")
+      ty = Type.FunType(ty, parseType())
+    }
+    return ty
+  }
+
+  fun parseTypeAtom(): Type {
+    return when (val t = lexer.next()) {
+      is Token.BOOL -> {
+        Type.BoolTy
+      }
+      is Token.INT -> {
+        Type.IntTy
+      }
+      is Token.LPAREN -> {
+        val ty = parseType()
+        expect<Token.RPAREN>("a closing paren")
+        ty
+      }
+      else -> throw Error("Expected a type but got: $t")
+    }
+  }
 
   fun parseExpression(): Expr {
     return parseBinary(0)
@@ -224,9 +258,14 @@ class Parser(val lexer: Lexer) {
   private fun parseLambda(): Expr.Lambda {
     expect<Token.BACKSLASH>("lambda")
     val binder = expect<Token.IDENT>("binder")
-    expect<Token.ARROW>("arrow")
+    var tyBinder: Type? = null
+    if (lexer.lookahead() == Token.COLON) {
+      expect<Token.COLON>("colon")
+      tyBinder = parseType()
+    }
+    expect<Token.EQ_ARROW>("arrow")
     val body = parseExpression()
-    return Expr.Lambda(binder.ident, body)
+    return Expr.Lambda(binder.ident, tyBinder, body)
   }
 
   private fun parseInt(): Expr.IntLiteral {

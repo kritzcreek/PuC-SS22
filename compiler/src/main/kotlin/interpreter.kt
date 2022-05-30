@@ -3,7 +3,7 @@ import kotlinx.collections.immutable.persistentHashMapOf
 
 sealed class Expr {
   data class Var(val name: String) : Expr()
-  data class Lambda(val binder: String, val body: Expr) : Expr()
+  data class Lambda(val binder: String, val tyBinder: Type?, val body: Expr) : Expr()
   data class App(val func: Expr, val arg: Expr) : Expr()
   data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr) : Expr()
   data class Binary(val left: Expr, val op: Operator, val right: Expr) : Expr()
@@ -97,14 +97,14 @@ fun numericBinary(left: Value, right: Value, operation: String, combine: (Int, I
 }
 
 val emptyEnv: Env = persistentHashMapOf()
-val x = Expr.Var("x")
-val y = Expr.Var("y")
-val v = Expr.Var("v")
-val f = Expr.Var("f")
-
-val innerZ = Expr.Lambda("v", Expr.App(Expr.App(x, x), v))
-val innerZ1 = Expr.Lambda("x", Expr.App(f, innerZ))
-val z = Expr.Lambda("f", Expr.App(innerZ1, innerZ1))
+//val x = Expr.Var("x")
+//val y = Expr.Var("y")
+//val v = Expr.Var("v")
+//val f = Expr.Var("f")
+//
+//val innerZ = Expr.Lambda("v", Expr.App(Expr.App(x, x), v))
+//val innerZ1 = Expr.Lambda("x", Expr.App(f, innerZ))
+//val z = Expr.Lambda("f", Expr.App(innerZ1, innerZ1))
 
 // Hausaufgabe:
 // Fibonacci Funktion implementieren
@@ -115,26 +115,26 @@ val z = Expr.Lambda("f", Expr.App(innerZ1, innerZ1))
 fun main() {
   // sumAll(0) = 0
   // sumAll(x) = x + sumAll(x-1)
-  val sumAll = Expr.Lambda(
-    "self", Expr.Lambda(
-      "x",
-      Expr.If(
-        Expr.Binary(x, Operator.Equality, Expr.IntLiteral(0)),
-        Expr.IntLiteral(0),
-        Expr.Binary(
-          x,
-          Operator.Add,
-          Expr.App(Expr.Var("self"), Expr.Binary(x, Operator.Add, Expr.IntLiteral(-1)))
-        )
-      )
-    )
-  )
+//  val sumAll = Expr.Lambda(
+//    "self", Expr.Lambda(
+//      "x",
+//      Expr.If(
+//        Expr.Binary(x, Operator.Equality, Expr.IntLiteral(0)),
+//        Expr.IntLiteral(0),
+//        Expr.Binary(
+//          x,
+//          Operator.Add,
+//          Expr.App(Expr.Var("self"), Expr.Binary(x, Operator.Add, Expr.IntLiteral(-1)))
+//        )
+//      )
+//    )
+//  )
 
-  val add = Expr.Lambda("x", Expr.Lambda("y", Expr.Binary(x, Operator.Add, y)))
+//  val add = Expr.Lambda("x", Expr.Lambda("y", Expr.Binary(x, Operator.Add, y)))
 
-  val result = eval(
-    emptyEnv,
-    Expr.App(Expr.App(z, sumAll), Expr.IntLiteral(500))
-  )
-  println("$result")
+//  val result = eval(
+//    emptyEnv,
+//    Expr.App(Expr.App(z, sumAll), Expr.IntLiteral(500))
+//  )
+//  println("$result")
 }
