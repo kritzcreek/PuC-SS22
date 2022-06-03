@@ -1,0 +1,54 @@
+#+TITLE: Achte Vorlesung
+#+DATE: 27.05.2022 PuC
+* Herzlich Willkommen
+
+Bitte an die Kameras denken
+
+Aufnahme starten
+
+* Agenda
+- Wiederholung
+- Rekursives Let
+- Projektvorschlaege
+
+* Wiederholung
+- Inferenz/Unifikation
+
+* Rekursives Let
+
+Bisher konnten wir Fibonacci, oder andere rekursive Funktionen nur mit
+dem Z-Kombinator definieren. Das funktioniert, ist aber nicht
+besonders ergonomisch, oder effizient.
+
+In den meisten general-purpose Programmiersprachen ist Rekursion als
+Sprachfeature implementiert. Wir werden das gleiche fuer unsere
+Programmiersprache umsetzen.
+
+Syntax:
+
+let rec f = \x => e1 in e2
+
+Wichtig, nur rekursive _Funktionen_ sind erlaubt.
+
+* Projektvorschlaege
+
+- Daniel Koellgen & Julian Gross
+  Pretty Printer + Switch statement + scanf
+
+- Moritz Kohler & Dustin Stein
+  Parser Generatoren ANTLR
+
+- Leon Maraite & ???
+  Kleine Prozedurale Sprache in Go
+
+- Thomas Donst & ???
+  Eine Shell in Rust
+
+- Raphaëlle Sop Simo & Lucas Menke
+  Caeser Verschluesselung u. Entschluesselung in unserer Programmiersprache
+
+- Leo Petersberg & Jesaja Storm
+  SQL Parser/checker
+
+- Justin Biemek
+  Pretty Printer in Python

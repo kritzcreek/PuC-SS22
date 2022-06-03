@@ -7,7 +7,7 @@ sealed class Expr {
   data class App(val func: Expr, val arg: Expr) : Expr()
   data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr) : Expr()
   data class Binary(val left: Expr, val op: Operator, val right: Expr) : Expr()
-  data class Let(val binder: String, val expr: Expr, val body: Expr) : Expr()
+  data class Let(val recursive: Boolean, val binder: String, val expr: Expr, val body: Expr) : Expr()
 
   data class IntLiteral(val num: Int) : Expr()
   data class BoolLiteral(val bool: Boolean) : Expr()
@@ -26,7 +26,7 @@ typealias Env = PersistentMap<String, Value>
 sealed class Value {
   data class Int(val num: kotlin.Int) : Value()
   data class Bool(val bool: Boolean) : Value()
-  data class Closure(val env: Env, val binder: String, val body: Expr) : Value()
+  data class Closure(var env: Env, val binder: String, val body: Expr) : Value()
 }
 
 fun eval(env: Env, expr: Expr): Value {
@@ -50,7 +50,11 @@ fun eval(env: Env, expr: Expr): Value {
       }
     }
     is Expr.Let -> {
-      val extendedEnv = env.put(expr.binder, eval(env, expr.expr))
+      val evaledExpr = eval(env, expr.expr)
+      if (expr.recursive && evaledExpr is Value.Closure) {
+        evaledExpr.env = evaledExpr.env.put(expr.binder, evaledExpr)
+      }
+      val extendedEnv = env.put(expr.binder, evaledExpr)
       eval(extendedEnv, expr.body)
     }
     is Expr.Lambda -> Value.Closure(env, expr.binder, expr.body)
@@ -113,6 +117,19 @@ val emptyEnv: Env = persistentHashMapOf()
 // fib(x) = fib (x - 1) + fib (x - 2)
 
 fun main() {
+  val input = """
+    let rec sum = \x => if x == 0 then 0 else x + sum (x - 1) in
+    let rec fib = \x =>
+      if x == 0 then 0
+      else if x == 1 then 1
+      else fib (x - 1) + fib (x - 2) in
+    fib (sum 4)
+  """.trimIndent()
+
+  val expr = Parser(Lexer(input)).parseExpression()
+  val ty = infer(emptyContext, expr)
+  println("${eval(emptyEnv, expr) }: ${prettyTy(applySolution(ty))}")
+
   // sumAll(0) = 0
   // sumAll(x) = x + sumAll(x-1)
 //  val sumAll = Expr.Lambda(

@@ -12,6 +12,7 @@ sealed class Token {
   object THEN : Token()
   object ELSE : Token()
   object LET : Token()
+  object REC : Token()
   object IN : Token()
 
   object INT : Token()
@@ -118,6 +119,7 @@ class Lexer(input: String) {
       "then" -> Token.THEN
       "else" -> Token.ELSE
       "let" -> Token.LET
+      "rec" -> Token.REC
       "in" -> Token.IN
       "true" -> Token.BOOL_LIT(true)
       "false" -> Token.BOOL_LIT(false)
@@ -232,12 +234,16 @@ class Parser(val lexer: Lexer) {
 
   private fun parseLet(): Expr {
     expect<Token.LET>("let")
+    val recursive = lexer.lookahead() == Token.REC
+    if (recursive) {
+      expect<Token.REC>("rec")
+    }
     val binder = expect<Token.IDENT>("binder").ident
     expect<Token.EQUALS>("equals")
     val expr = parseExpression()
     expect<Token.IN>("in")
     val body = parseExpression()
-    return Expr.Let(binder, expr, body)
+    return Expr.Let(recursive, binder, expr, body)
   }
 
   private fun parseVar(): Expr.Var {

@@ -59,27 +59,28 @@ fun infer(ctx: Context, expr: Expr): Type {
       val tyCond = infer(ctx, expr.condition)
       val tyThen = infer(ctx, expr.thenBranch)
       val tyElse = infer(ctx, expr.elseBranch)
-      shouldEqual(tyCond, Type.BoolTy)
-      // if (tyCond != Type.BoolTy) throw Exception("${expr.condition} does not have type Bool")
-      shouldEqual(tyThen, tyElse)
-      // if (tyThen != tyElse) throw Exception("Branches in if have mismatching types")
+      shouldEqual(tyCond, Type.BoolTy, "A condition to an If did not have the type Bool")
+      shouldEqual(tyThen, tyElse, "The then and else branch had mismatching types")
       tyThen
     }
     is Expr.Var -> {
       ctx.get(expr.name) ?: throw Exception("Unknown variable ${expr.name}")
     }
     is Expr.Let -> {
-      val tyExpr = infer(ctx, expr.expr)
-      val tyBody = infer(ctx.put(expr.binder, tyExpr), expr.body)
+      val tyExpr = freshUnknown()
+      if (expr.recursive) {
+        shouldEqual(infer(ctx.put(expr.binder, tyExpr), expr.expr), tyExpr, "Recursive let fail")
+      } else {
+        shouldEqual(infer(ctx, expr.expr), tyExpr, "Should never happen")
+      }
+      val tyBody = infer(ctx.put(expr.binder, applySolution(tyExpr)), expr.body)
       tyBody
     }
     is Expr.Binary -> {
       val tyLeft = infer(ctx, expr.left)
       val tyRight = infer(ctx, expr.right)
-      shouldEqual(tyLeft, Type.IntTy)
-      shouldEqual(tyRight, Type.IntTy)
-//      if (tyLeft != Type.IntTy) throw Exception("${expr.left} is not an Int, but a $tyLeft instead")
-//      if (tyRight != Type.IntTy) throw Exception("${expr.right} is not an Int, but a $tyRight instead")
+      shouldEqual(tyLeft, Type.IntTy, "The left operand to ${expr.op.name} had the wrong type")
+      shouldEqual(tyRight, Type.IntTy, "The right operand to ${expr.op.name} had the wrong type")
       when (expr.op) {
         Operator.Add,
         Operator.Subtract,
@@ -93,7 +94,7 @@ fun infer(ctx: Context, expr: Expr): Type {
       val tyFunc = infer(ctx, expr.func)
       val tyArg = infer(ctx, expr.arg)
       val tyRes = freshUnknown()
-      shouldEqual(tyFunc, Type.FunType(tyArg, tyRes))
+      shouldEqual(tyFunc, Type.FunType(tyArg, tyRes), "Failed to apply a function to an argument")
       return tyRes
     }
     is Expr.Lambda -> {
@@ -118,7 +119,7 @@ fun unify(t1: Type, t2: Type) {
     unify(ty1.arg, ty2.arg)
     unify(ty1.returnTy, ty2.returnTy)
   } else {
-    throw Error("Can't unify $ty1 with $ty2")
+    throw Error("can't unify $ty1 with $ty2")
   }
 }
 
@@ -127,8 +128,12 @@ fun freshUnknown(): Type {
   return Type.Unknown(++unknownSupply)
 }
 
-fun shouldEqual(ty1: Type, ty2: Type) {
-  unify(ty1, ty2)
+fun shouldEqual(ty1: Type, ty2: Type, msg: String) {
+  try {
+   unify(ty1, ty2)
+  } catch (e: Error) {
+    throw Error("$msg, because we ${e.message}")
+  }
 }
 
 var solution: MutableMap<Int, Type> = mutableMapOf()
@@ -169,7 +174,7 @@ fun main() {
     if y then x else 10
   """.trimIndent()
   )
-  testInfer("1 + 2")
+  testInfer("1 + 3")
   testInfer("1 + 2 == 3 * 4")
   testInfer("""
     let not = \x : Bool => if x then false else true in
