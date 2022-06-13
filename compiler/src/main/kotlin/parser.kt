@@ -143,22 +143,22 @@ class Lexer(input: String) {
 
 class Parser(val lexer: Lexer) {
 
-  fun parseType(): Type {
+  fun parseType(): MonoType {
     var ty = parseTypeAtom()
     while(lexer.lookahead() == Token.ARROW) {
       expect<Token.ARROW>("an arrow")
-      ty = Type.FunType(ty, parseType())
+      ty = MonoType.FunType(ty, parseType())
     }
     return ty
   }
 
-  fun parseTypeAtom(): Type {
+  fun parseTypeAtom(): MonoType {
     return when (val t = lexer.next()) {
       is Token.BOOL -> {
-        Type.BoolTy
+        MonoType.BoolTy
       }
       is Token.INT -> {
-        Type.IntTy
+        MonoType.IntTy
       }
       is Token.LPAREN -> {
         val ty = parseType()
@@ -264,7 +264,7 @@ class Parser(val lexer: Lexer) {
   private fun parseLambda(): Expr.Lambda {
     expect<Token.BACKSLASH>("lambda")
     val binder = expect<Token.IDENT>("binder")
-    var tyBinder: Type? = null
+    var tyBinder: MonoType? = null
     if (lexer.lookahead() == Token.COLON) {
       expect<Token.COLON>("colon")
       tyBinder = parseType()

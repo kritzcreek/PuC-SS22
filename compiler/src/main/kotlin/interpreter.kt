@@ -3,7 +3,7 @@ import kotlinx.collections.immutable.persistentHashMapOf
 
 sealed class Expr {
   data class Var(val name: String) : Expr()
-  data class Lambda(val binder: String, val tyBinder: Type?, val body: Expr) : Expr()
+  data class Lambda(val binder: String, val tyBinder: MonoType?, val body: Expr) : Expr()
   data class App(val func: Expr, val arg: Expr) : Expr()
   data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr) : Expr()
   data class Binary(val left: Expr, val op: Operator, val right: Expr) : Expr()
@@ -116,19 +116,34 @@ val emptyEnv: Env = persistentHashMapOf()
 // fib(1) = 1
 // fib(x) = fib (x - 1) + fib (x - 2)
 
+tailrec fun sum(acc: Int, x: Int): Int {
+  return if (x == 0) {
+    acc
+  } else {
+    sum(acc + x, x - 1)
+  }
+}
+
 fun main() {
+  // val sum100000 = sum(0, 100000)
+
   val input = """
     let rec sum = \x => if x == 0 then 0 else x + sum (x - 1) in
     let rec fib = \x =>
       if x == 0 then 0
       else if x == 1 then 1
       else fib (x - 1) + fib (x - 2) in
-    fib (sum 4)
+    sum 10000
   """.trimIndent()
+
+//  val input = """
+//    let flip = \f => \x => \y => f y x in
+//    flip
+//  """.trimIndent()
 
   val expr = Parser(Lexer(input)).parseExpression()
   val ty = infer(emptyContext, expr)
-  println("${eval(emptyEnv, expr) }: ${prettyTy(applySolution(ty))}")
+  println("${eval(emptyEnv, expr) }: ${prettyPoly(generalize(emptyContext, applySolution(ty)))}")
 
   // sumAll(0) = 0
   // sumAll(x) = x + sumAll(x-1)
