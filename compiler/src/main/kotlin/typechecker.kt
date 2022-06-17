@@ -62,13 +62,14 @@ fun instantiate(poly: PolyType): MonoType {
 }
 
 fun generalize(ctx: Context, mono: MonoType): PolyType {
-  val unknownsInContext: PersistentSet<Int> = ctx.toList().fold(persistentSetOf()) { acc, (_, v) -> acc.addAll(v.mono.unknowns()) }
-  val unknowns = mono.unknowns().filterNot { u -> unknownsInContext.contains(u)}
+  val unknownsInContext: PersistentSet<Int> =
+    ctx.toList().fold(persistentSetOf()) { acc, (_, v) -> acc.addAll(v.mono.unknowns()) }
+  val unknowns = mono.unknowns().filterNot { u -> unknownsInContext.contains(u) }
   val map: MutableMap<Int, MonoType> = mutableMapOf()
   val zipped = unknowns.zip('a'..'z')
-  zipped.forEach{ (u, v) -> map[u] = MonoType.Var(v.toString()) }
+  zipped.forEach { (u, v) -> map[u] = MonoType.Var(v.toString()) }
   val ty = applySolution(mono, map)
-  val vars = zipped.map { (_, v) -> v.toString()}
+  val vars = zipped.map { (_, v) -> v.toString() }
   return PolyType(vars, ty)
 }
 
@@ -180,7 +181,11 @@ fun freshUnknown(): MonoType {
 }
 
 fun shouldEqual(ty1: MonoType, ty2: MonoType, msg: String) {
+  try {
     unify(ty1, ty2)
+  } catch (e: Error) {
+    throw Error("$msg, because we ${e.message}")
+  }
 }
 
 var solution: MutableMap<Int, MonoType> = mutableMapOf()
@@ -196,7 +201,7 @@ fun applySolution(ty: MonoType, sol: MutableMap<Int, MonoType> = solution): Mono
   return when (ty) {
     MonoType.BoolTy, MonoType.IntTy, is MonoType.Var -> ty
     is MonoType.FunType -> MonoType.FunType(applySolution(ty.arg, sol), applySolution(ty.returnTy, sol))
-    is MonoType.Unknown -> sol[ty.u] ?: ty
+    is MonoType.Unknown -> sol[ty.u]?.let { applySolution(it, sol) } ?: ty
   }
 }
 
@@ -222,8 +227,9 @@ fun main() {
 //  testInfer("if true then 10 else 20")
   testInfer(
     """
-    let apply = \f => \x => f x in
-    apply
+    let flip = \f => \x => \y => f y x in
+    let f = \x => \y => if x then y else 10 in
+    flip f 20 true
   """.trimIndent()
   )
 //  testInfer("1 + 3")
