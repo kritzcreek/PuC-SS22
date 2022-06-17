@@ -6,6 +6,7 @@ import kotlinx.collections.immutable.persistentSetOf
 sealed class MonoType {
   object IntTy : MonoType()
   object BoolTy : MonoType()
+  object StringTy : MonoType()
   data class FunType(val arg: MonoType, val returnTy: MonoType) : MonoType() {
     override fun toString(): String {
       return super.toString()
@@ -30,7 +31,7 @@ sealed class MonoType {
 
   fun unknowns(): PersistentSet<Int> {
     return when (this) {
-      BoolTy, IntTy, is Var -> persistentSetOf()
+      BoolTy, IntTy, StringTy, is Var -> persistentSetOf()
       is FunType -> this.arg.unknowns().addAll(this.returnTy.unknowns())
       is Unknown -> persistentSetOf(this.u)
     }
@@ -38,7 +39,7 @@ sealed class MonoType {
 
   fun substitute(name: String, replacement: MonoType): MonoType {
     return when (this) {
-      BoolTy, is Unknown, IntTy -> this
+      BoolTy, is Unknown, IntTy, StringTy -> this
       is FunType -> FunType(arg.substitute(name, replacement), returnTy.substitute(name, replacement))
       is Var -> if (this.v == name) {
         replacement
@@ -85,6 +86,8 @@ fun prettyPoly(ty: PolyType): String {
 fun prettyTy(ty: MonoType, nested: Boolean = false): String {
   return when (ty) {
     MonoType.BoolTy -> "Bool"
+    MonoType.IntTy -> "Int"
+    MonoType.StringTy -> "String"
     is MonoType.Unknown -> "$${ty.u}"
     is MonoType.Var -> ty.v
     is MonoType.FunType -> {
@@ -96,18 +99,23 @@ fun prettyTy(ty: MonoType, nested: Boolean = false): String {
         "$prettyArg -> $prettyReturn"
       }
     }
-    MonoType.IntTy -> "Int"
   }
 }
 
 typealias Context = PersistentMap<String, PolyType>
 
-val emptyContext: Context = persistentHashMapOf()
+val initialContext: Context = persistentHashMapOf(
+  "firstChar" to PolyType.fromMono(monoTy("String -> String")),
+  "remainingChars" to PolyType.fromMono(monoTy("String -> String")),
+  "charCode" to PolyType.fromMono(monoTy("String -> Int")),
+  "codeChar" to PolyType.fromMono(monoTy("Int -> String")),
+)
 
 fun infer(ctx: Context, expr: Expr): MonoType {
   return when (expr) {
     is Expr.IntLiteral -> MonoType.IntTy
     is Expr.BoolLiteral -> MonoType.BoolTy
+    is Expr.StringLiteral -> MonoType.StringTy
     is Expr.If -> {
       val tyCond = infer(ctx, expr.condition)
       val tyThen = infer(ctx, expr.thenBranch)
@@ -117,7 +125,7 @@ fun infer(ctx: Context, expr: Expr): MonoType {
       tyThen
     }
     is Expr.Var -> {
-      ctx.get(expr.name)?.let(::instantiate) ?: throw Exception("Unknown variable ${expr.name}")
+      ctx[expr.name]?.let(::instantiate) ?: throw Exception("Unknown variable ${expr.name}")
     }
     is Expr.Let -> {
       val tyExpr = freshUnknown()
@@ -130,18 +138,29 @@ fun infer(ctx: Context, expr: Expr): MonoType {
       val tyBody = infer(ctx.put(expr.binder, applySolution(tyExprPoly)), expr.body)
       tyBody
     }
+
     is Expr.Binary -> {
       val tyLeft = infer(ctx, expr.left)
       val tyRight = infer(ctx, expr.right)
-      shouldEqual(tyLeft, MonoType.IntTy, "The left operand to ${expr.op.name} had the wrong type")
-      shouldEqual(tyRight, MonoType.IntTy, "The right operand to ${expr.op.name} had the wrong type")
+
       when (expr.op) {
         Operator.Add,
         Operator.Subtract,
         Operator.Multiply,
-        Operator.Divide ->
+        Operator.Divide -> {
+          shouldEqual(tyLeft, MonoType.IntTy, "The left operand to ${expr.op.name} had the wrong type")
+          shouldEqual(tyRight, MonoType.IntTy, "The right operand to ${expr.op.name} had the wrong type")
           MonoType.IntTy
-        Operator.Equality -> MonoType.BoolTy
+        }
+        Operator.Concat -> {
+          shouldEqual(tyLeft, MonoType.StringTy, "The left operand to concat has to be String")
+          shouldEqual(tyRight, MonoType.StringTy, "The right operand to concat has to be String")
+          MonoType.StringTy
+        }
+        Operator.Equality -> {
+          unify(tyLeft, tyRight)
+          MonoType.BoolTy
+        }
       }
     }
     is Expr.App -> {
@@ -199,7 +218,7 @@ fun solve(u: Int, ty: MonoType) {
 
 fun applySolution(ty: MonoType, sol: MutableMap<Int, MonoType> = solution): MonoType {
   return when (ty) {
-    MonoType.BoolTy, MonoType.IntTy, is MonoType.Var -> ty
+    MonoType.BoolTy, MonoType.IntTy, MonoType.StringTy, is MonoType.Var -> ty
     is MonoType.FunType -> MonoType.FunType(applySolution(ty.arg, sol), applySolution(ty.returnTy, sol))
     is MonoType.Unknown -> sol[ty.u]?.let { applySolution(it, sol) } ?: ty
   }
@@ -213,7 +232,7 @@ fun testInfer(program: String) {
   unknownSupply = 0
   solution = mutableMapOf()
   val expr = Parser(Lexer(program)).parseExpression()
-  val ctx: Context = emptyContext
+  val ctx: Context = initialContext
   val ty = applySolution(infer(ctx, expr))
   val poly = generalize(ctx, ty)
   println("$program : ${prettyPoly(poly)}")
@@ -228,8 +247,8 @@ fun main() {
   testInfer(
     """
     let flip = \f => \x => \y => f y x in
-    let f = \x => \y => if x then y else 10 in
-    flip f 20 true
+    let f = \x => \y => if x == "Hello" then y else 10 in
+    f
   """.trimIndent()
   )
 //  testInfer("1 + 3")

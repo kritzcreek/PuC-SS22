@@ -11,6 +11,7 @@ sealed class Expr {
 
   data class IntLiteral(val num: Int) : Expr()
   data class BoolLiteral(val bool: Boolean) : Expr()
+  data class StringLiteral(val string: String) : Expr()
 }
 
 enum class Operator {
@@ -18,7 +19,8 @@ enum class Operator {
   Subtract,
   Multiply,
   Divide,
-  Equality
+  Equality,
+  Concat
 }
 
 typealias Env = PersistentMap<String, Value>
@@ -26,17 +28,36 @@ typealias Env = PersistentMap<String, Value>
 sealed class Value {
   data class Int(val num: kotlin.Int) : Value()
   data class Bool(val bool: Boolean) : Value()
-  data class Closure(var env: Env, val binder: String, val body: Expr) : Value()
+  data class String(val string: kotlin.String) : Value()
+  data class Closure(var env: Env, val binder: kotlin.String, val body: Expr) : Value()
 }
 
 fun eval(env: Env, expr: Expr): Value {
   return when (expr) {
     is Expr.IntLiteral -> Value.Int(expr.num)
     is Expr.BoolLiteral -> Value.Bool(expr.bool)
+    is Expr.StringLiteral -> Value.String(expr.string)
     is Expr.Binary -> {
       val left = eval(env, expr.left)
       val right = eval(env, expr.right)
-      numericBinary(left, right, nameForOp(expr.op)) { x, y -> applyOp(expr.op, x, y) }
+      return when (expr.op) {
+        Operator.Equality -> if (left is Value.Int && right is Value.Int) {
+          Value.Bool(left.num == right.num)
+        } else if (left is Value.Bool && right is Value.Bool) {
+          Value.Bool(left.bool == right.bool)
+        } else if (left is Value.String && right is Value.String) {
+          Value.Bool(left.string == right.string)
+        } else {
+          throw Error("Comparing incompatible values: $left and $right")
+        }
+        Operator.Concat -> if (left is Value.String && right is Value.String) {
+          Value.String(left.string + right.string)
+        } else {
+          throw Error("Can't concatenate non-string values: $left and $right")
+        }
+        else -> numericBinary(left, right, nameForOp(expr.op)) { x, y -> applyOp(expr.op, x, y) }
+      }
+
     }
     is Expr.If -> {
       val condition = eval(env, expr.condition)
@@ -58,7 +79,26 @@ fun eval(env: Env, expr: Expr): Value {
       eval(extendedEnv, expr.body)
     }
     is Expr.Lambda -> Value.Closure(env, expr.binder, expr.body)
-    is Expr.Var -> env.get(expr.name) ?: throw Exception("Unbound variable ${expr.name}")
+    is Expr.Var ->
+      when (expr.name) {
+        "#firstChar" -> {
+          val s = env["x"]!! as Value.String
+          Value.String(s.string.take(1))
+        }
+        "#remainingChars" -> {
+          val s = env["x"]!! as Value.String
+          Value.String(s.string.drop(1))
+        }
+        "#charCode" -> {
+          val s = env["x"]!! as Value.String
+          Value.Int(s.string[0].code)
+        }
+        "#codeChar" -> {
+          val x = env["x"]!! as Value.Int
+          Value.String(x.num.toChar().toString())
+        }
+        else -> env.get(expr.name) ?: throw Exception("Unbound variable ${expr.name}")
+      }
     is Expr.App -> {
       val func = eval(env, expr.func)
       if (func !is Value.Closure) {
@@ -79,6 +119,7 @@ fun applyOp(op: Operator, x: Int, y: Int): Value {
     Operator.Multiply -> Value.Int(x * y)
     Operator.Divide -> Value.Int(x / y)
     Operator.Equality -> Value.Bool(x == y)
+    else -> throw Error("Can't concat ints")
   }
 }
 
@@ -89,6 +130,7 @@ fun nameForOp(op: Operator): String {
     Operator.Multiply -> "multiply"
     Operator.Divide -> "divide"
     Operator.Equality -> "compare"
+    Operator.Concat -> "concat"
   }
 }
 
@@ -101,6 +143,20 @@ fun numericBinary(left: Value, right: Value, operation: String, combine: (Int, I
 }
 
 val emptyEnv: Env = persistentHashMapOf()
+val initialEnv: Env = persistentHashMapOf(
+  "firstChar" to Value.Closure(emptyEnv, "x",
+    Expr.Var("#firstChar")
+  ),
+  "remainingChars" to Value.Closure(emptyEnv, "x",
+    Expr.Var("#remainingChars")
+  ),
+  "charCode" to Value.Closure(emptyEnv, "x",
+    Expr.Var("#charCode")
+  ),
+  "codeChar" to Value.Closure(emptyEnv, "x",
+    Expr.Var("#codeChar")
+  )
+)
 //val x = Expr.Var("x")
 //val y = Expr.Var("y")
 //val v = Expr.Var("v")
@@ -116,57 +172,22 @@ val emptyEnv: Env = persistentHashMapOf()
 // fib(1) = 1
 // fib(x) = fib (x - 1) + fib (x - 2)
 
-tailrec fun sum(acc: Int, x: Int): Int {
-  return if (x == 0) {
-    acc
-  } else {
-    sum(acc + x, x - 1)
-  }
+fun testInput(input: String) {
+  val expr = Parser(Lexer(input)).parseExpression()
+  val ty = infer(initialContext, expr)
+
+  println("${eval(initialEnv, expr) } : ${prettyPoly(generalize(initialContext, applySolution(ty)))}")
 }
 
 fun main() {
-  // val sum100000 = sum(0, 100000)
+  testInput("""
+    let hello = "Hello" in
+    let world = "World" in
+    let join = \s1 => \s2 => s1 # " " # s2 in
+    let shout = \s => s # "!" in
+    let twice = \f => \x => f (f x) in
+    twice (twice shout) (join hello world)
+  """.trimIndent())
 
-  val input = """
-    let rec sum = \x => if x == 0 then 0 else x + sum (x - 1) in
-    let rec fib = \x =>
-      if x == 0 then 0
-      else if x == 1 then 1
-      else fib (x - 1) + fib (x - 2) in
-    sum 10000
-  """.trimIndent()
 
-//  val input = """
-//    let flip = \f => \x => \y => f y x in
-//    flip
-//  """.trimIndent()
-
-  val expr = Parser(Lexer(input)).parseExpression()
-  val ty = infer(emptyContext, expr)
-  println("${eval(emptyEnv, expr) }: ${prettyPoly(generalize(emptyContext, applySolution(ty)))}")
-
-  // sumAll(0) = 0
-  // sumAll(x) = x + sumAll(x-1)
-//  val sumAll = Expr.Lambda(
-//    "self", Expr.Lambda(
-//      "x",
-//      Expr.If(
-//        Expr.Binary(x, Operator.Equality, Expr.IntLiteral(0)),
-//        Expr.IntLiteral(0),
-//        Expr.Binary(
-//          x,
-//          Operator.Add,
-//          Expr.App(Expr.Var("self"), Expr.Binary(x, Operator.Add, Expr.IntLiteral(-1)))
-//        )
-//      )
-//    )
-//  )
-
-//  val add = Expr.Lambda("x", Expr.Lambda("y", Expr.Binary(x, Operator.Add, y)))
-
-//  val result = eval(
-//    emptyEnv,
-//    Expr.App(Expr.App(z, sumAll), Expr.IntLiteral(500))
-//  )
-//  println("$result")
 }

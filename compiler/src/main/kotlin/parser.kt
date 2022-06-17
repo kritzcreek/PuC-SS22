@@ -17,6 +17,7 @@ sealed class Token {
 
   object INT : Token()
   object BOOL : Token()
+  object STRING : Token()
 
   // Symbols
   object LPAREN : Token()
@@ -30,6 +31,7 @@ sealed class Token {
   // Literal
   data class BOOL_LIT(val bool: Boolean) : Token()
   data class INT_LIT(val int: Int) : Token()
+  data class STRING_LIT(val string: String): Token()
 
   data class IDENT(val ident: String) : Token()
 
@@ -39,6 +41,7 @@ sealed class Token {
   object MULTIPLY : Token()
   object DIVIDES : Token()
   object DOUBLE_EQUALS : Token()
+  object HASH : Token()
 
   // Control
   object EOF : Token()
@@ -78,6 +81,7 @@ class Lexer(input: String) {
       '+' -> Token.PLUS
       '/' -> Token.DIVIDES
       '*' -> Token.MULTIPLY
+      '#' -> Token.HASH
       '-' -> if (iter.peek() == '>') {
         iter.next()
         Token.ARROW
@@ -93,6 +97,7 @@ class Lexer(input: String) {
       } else {
         Token.EQUALS
       }
+      '"' -> lexString()
       else -> when {
         c.isJavaIdentifierStart() -> lexIdentifier(c)
         c.isDigit() -> lexInt(c)
@@ -125,8 +130,19 @@ class Lexer(input: String) {
       "false" -> Token.BOOL_LIT(false)
       "Int" -> Token.INT
       "Bool" -> Token.BOOL
+      "String" -> Token.STRING
       else -> Token.IDENT(res)
     }
+  }
+
+  private fun lexString(): Token.STRING_LIT {
+    var result = ""
+    while (iter.peek() != '"') {
+      val next = iter.next() ?: throw Error("Unterminated String Literal")
+      result += next
+    }
+    iter.next()
+    return Token.STRING_LIT(result)
   }
 
   private fun chompWhitespace() {
@@ -159,6 +175,9 @@ class Parser(val lexer: Lexer) {
       }
       is Token.INT -> {
         MonoType.IntTy
+      }
+      is Token.STRING -> {
+        MonoType.StringTy
       }
       is Token.LPAREN -> {
         val ty = parseType()
@@ -193,6 +212,7 @@ class Parser(val lexer: Lexer) {
       Token.MINUS -> Operator.Subtract
       Token.MULTIPLY -> Operator.Multiply
       Token.PLUS -> Operator.Add
+      Token.HASH -> Operator.Concat
       else -> null
     }
   }
@@ -200,7 +220,7 @@ class Parser(val lexer: Lexer) {
   private fun bindingPowerForOp(op: Operator): Pair<Int, Int> {
     return when (op) {
       Operator.Equality -> 2 to 1
-      Operator.Add, Operator.Subtract -> 3 to 4
+      Operator.Add, Operator.Subtract, Operator.Concat -> 3 to 4
       Operator.Multiply, Operator.Divide -> 5 to 6
     }
   }
@@ -218,6 +238,7 @@ class Parser(val lexer: Lexer) {
     return when (lexer.lookahead()) {
       is Token.INT_LIT -> parseInt()
       is Token.BOOL_LIT -> parseBool()
+      is Token.STRING_LIT -> parseString()
       is Token.BACKSLASH -> parseLambda()
       is Token.LET -> parseLet()
       is Token.IF -> parseIf()
@@ -230,6 +251,11 @@ class Parser(val lexer: Lexer) {
       }
       else -> null
     }
+  }
+
+  private fun parseString(): Expr {
+    val t = expect<Token.STRING_LIT>("string")
+    return Expr.StringLiteral(t.string)
   }
 
   private fun parseLet(): Expr {
@@ -290,6 +316,10 @@ class Parser(val lexer: Lexer) {
   }
 }
 
+fun monoTy(input: String): MonoType {
+  return Parser(Lexer(input)).parseType()
+}
+
 fun testLex(input: String) {
   val lexer = Lexer(input)
   do {
@@ -320,14 +350,9 @@ fun test(input: String) {
 
 fun main() {
 //  testLex("""-> => == / * + -""")
-  test(
+  testLex(
     """
-      let z = \f => (\x => f \v => x x v) (\x => f \v => x x v) in
-      let fib = \self => \x ->
-        if x == 0 then 0
-        else if x == 1 then 1
-        else self (x - 1) + self (x - 2) in
-      z fib 10
+      "Hello"
    """.trimMargin()
   )
 }
