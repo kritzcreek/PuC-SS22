@@ -1,0 +1,68 @@
+#+TITLE: Elfte Vorlesung
+#+DATE: 24.06.2022 PuC
+* Herzlich Willkommen
+
+* Projektvorschlaege
+
+- Daniel Koellgen & Julian Gross
+  Pretty Printer + Switch statement + scanf
+
+- Moritz Kohler & Dustin Stein
+  Parser Generatoren ANTLR
+
+- Leon Maraite & ???
+  Kleine Prozedurale Sprache in Go
+
+- Thomas Donst & Daniel Butler Parcet
+  Eine Shell in Rust
+
+- Raphaëlle Sop Simo & Lucas Menke
+  Caeser Verschluesselung u. Entschluesselung in unserer Programmiersprache
+
+- Junis El Ahmad & Laura Zinn
+  Conways GoL in unserer Programmiersprache
+
+- Leo Petersberg & Jesaja Storm
+  SQL Parser/checker
+
+- Justin Biemek
+  Pretty Printer in Python
+
+- Sascha Sauermann & Max Teetz
+  Semantisches Highlighting
+
+- Volkan Ekici
+  XML Parser und Schema Validator
+
+- Taha Yazici & Kawa Saeed
+  Endrekursion
+
+- Marian Zufelde & Jan Buchmann
+  Arrays/Listen fuer unsere Programmiersprache
+
+- Thole de Jonge
+  Minecraft Data Packs Compiler
+
+- Arinc Firincioglu & Emre Cankaya
+  Json mit Funktionen
+
+- Denis Pauls & Adrian Hardenacke
+  Prolog/Datalog <- Parser, Interpreter
+
+- Mark Serebrjakov & Amedeo Murano
+  Namenlose Repraesentation des Lambda Calculus
+
+- Louis Marceau Holetzke & Steffen Pfeil
+  Toplevel Definitionen & Unit Testing
+
+- Jan Preuße & Okan Leenen
+  Erweiterter Taschenrechner
+
+- Daniel Kraft & Daniel Foell
+  Modulsystem (Imports & Exports)
+
+- Ivaylo Milkov & Dzhaner Shukri
+  Parserkombinatoren
+
+- Lucas Holger
+  Calculator Assembly
